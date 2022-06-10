@@ -122,7 +122,7 @@ tic;
 
 gamma = 20;
 eps = 1e-2;
-P_MatchFAME = MatchFAME(Z,dimPerm,AdjMat,d,gamma,eps);
+P_MatchFAME = MatchFAME(Z,dimPerm,AdjMat,2*d,gamma,eps);
 
 time_MatchFAME = toc;
 Z_MatchFAME = P_MatchFAME*P_MatchFAME';

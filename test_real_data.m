@@ -288,7 +288,7 @@ gamma = 4;
 eps = 0;
 AdjMat = ones(size(dimPerm,1));
 AdjMat = AdjMat - diag(diag(AdjMat));
-P_MatchFAME = MatchFAME(Z,dimPerm,AdjMat,d,gamma,eps,'dense');
+P_MatchFAME = MatchFAME(Z,dimPerm,AdjMat,2*d,gamma,eps,'dense');
 time_MatchFAME = toc;
 Z_MatchFAME = P_MatchFAME*P_MatchFAME';
 
