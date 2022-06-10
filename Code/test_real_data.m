@@ -1,0 +1,305 @@
+% Test of the multi-view matching algorithm MatchEIG on real datasets
+% Paper: Maset E., Arrigoni F., Fusiello A.: Practical and Efficient
+%        Multi-view matching - ICCV'17
+
+
+% Add VLFEAT to the matlab path (SIFT)
+fold = pwd;
+cd ./vlfeat-0.9.21/toolbox/
+vl_setup
+cd(fold);
+
+%% Parameters
+
+% Dataset EPFL
+switch id
+    case 1
+        img_path = './Data/castle-P19/images/'; % png
+        % Load ground-truth cameras/homographies
+        load(strcat(img_path,'ground_truth_castleP19.mat'))
+    case 2
+        img_path = './Data/castle-P30/images/'; % png
+        % Load ground-truth cameras/homographies
+        load(strcat(img_path,'ground_truth_castleP30.mat'))
+    case 3
+        img_path = './Data/entry-P10/images/'; % png
+        % Load ground-truth cameras/homographies
+        load(strcat(img_path,'ground_truth_entryP10.mat'))
+    case 4
+        img_path = './Data/fountain-P11/images/'; % png
+        % Load ground-truth cameras/homographies
+        load(strcat(img_path,'ground_truth_fountainP11.mat'))
+    case 5
+        img_path = './Data/Herz-Jesus-P8/images/'; % png
+        % Load ground-truth cameras/homographies
+        load(strcat(img_path,'ground_truth_herzjesuP8.mat'))
+    case 6
+        img_path = './Data/Herz-Jesus-P25/images/'; % png
+        % Load ground-truth cameras/homographies
+        load(strcat(img_path,'ground_truth_herzjesuP25.mat'))
+end
+datasetname = DataName{id};
+homography = false;       % This dataset contains ground-truth cameras
+format_img = 'jpg';
+scale = 0.2;              % Images are rescaled before computing SIFT
+% Read images of the dataset  
+imnames = dir(strcat(img_path,'*.',format_img));
+ncams = length(imnames);
+
+
+% Dataset MIDDLEBURY
+% img_path = './Data/templeRing/'; % png
+% homography = false;     % This dataset contains ground-truth cameras
+% format_img = 'png';
+% scale = 1;              % Images are not rescaled
+
+% Dataset GRAFFITI
+% img_path = './Data/Graffiti/'; % ppm
+% homography = true;      % This dataset contains ground-truth homographies
+% format_img = 'ppm';
+% scale = 1;              % Images are not rescaled
+
+% threshold to detect correct/wrong matches 
+th = 0.01;
+    
+
+% For the GRAFFITI dataset, 'ground_truth.mat' contains a 3x3xncams 
+% matrix H with ground-truth homographies
+% For the EPFL/MIDDLEBURY datasets, 'ground_truth.mat' contains a 3 x 3
+% matrix K with internal parameters, a 3x3xncams matrix R_real with ground
+% truth rotations and a 3xncams matrix t_real with ground-truth
+% translations
+
+% Delete features that have <= min_match matches
+min_match = 2;
+
+% RANSAC threshold (default: between 0.001 and 0.01)
+t_ransac = 0.005;
+
+%% Compute SIFT locations and descriptors for each image
+
+SIFT = cell(1,ncams);
+dimPerm = zeros(ncams,1);
+dimIm = zeros(ncams,1);
+
+for i=1:ncams
+    
+    fprintf('\nComputing frames and descriptors: image %d \n',i);
+    im = imread(strcat(img_path,imnames(i).name)); % load the current image
+    im = imresize(im,scale); % rescale the image to speed-up SIFT
+    if size(im,3) == 1
+        im = single(im);
+    else
+        im = single(rgb2gray(im));
+    end
+    [frames1,descr1] = vl_sift(im) ; % computes SIFT locations and descriptors
+    
+    SIFT{i}.desc = descr1;
+    SIFT{i}.locs = frames1(1:2,:)';
+    SIFT{i}.locs = SIFT{i}.locs/scale;
+    
+    fprintf('%d descriptors extracted\n',size(SIFT{i}.locs,1)); 
+    dimPerm(i) = size(SIFT{i}.locs,1);
+    dimIm(i) = sqrt(size(im,1)^2+size(im,2)^2);
+    
+end
+
+% threshold for error evaluation (depends on image diagonal)
+th = th*round(mean(dimIm));
+cumDim = [0;cumsum(dimPerm(1:end-1))];
+
+
+%% Match all the pairs and remove outliers with RANSAC
+
+[pairwiseEst,Z] = matching_ransac(ncams,SIFT,t_ransac,dimPerm);
+% Remove features with matches in less than two images (not significant
+% in joint matching)
+for i=1:ncams
+    n_match = sum(Z(1+cumDim(i):cumDim(i)+dimPerm(i),:),2);
+    
+    ind_match = find(n_match<=min_match);
+    
+    Z(cumDim(i)+ind_match,:) = [];  
+    Z(:,cumDim(i)+ind_match) = [];
+    dimPerm(i) = dimPerm(i)-length(ind_match);
+    
+    cumDim = [0;cumsum(dimPerm(1:end-1))];
+    
+    SIFT{i}.desc(:,ind_match)=[];
+    SIFT{i}.locs(ind_match,:)=[];
+end
+
+% Set the size of the universe as twice the average number of features
+% present in each image
+d = round(mean(dimPerm));
+
+%% Evaluate Input error
+
+if homography
+    [err_input,correct_matches_input,n_matches_input] = matching_error_homography(ncams,dimPerm,Z,SIFT,H,th);
+else
+    [err_input] = matching_error_sparse(ncams,dimPerm,Z,Z,SIFT,R_true,t_true,K,th);
+end
+[err_input,correct_matches_input,n_matches_input] = matching_error_global(ncams,dimPerm,Z,SIFT,R_true,t_true,K,th);
+fprintf('\nPrecision (Input) = %.2f %%\nNumber of matches (Input) = %.2f\n', 100-err_input*100,n_matches_input) ;
+
+%% Multi-view Matching (MATCHEIG)
+
+% set the threshold requested by MatchEIG
+thresh_matchEIG = 0.5;  % 0.5 for real datasets
+
+tic
+Z_matchEIG = MatchEIG(Z,2*d,ncams,dimPerm,thresh_matchEIG);
+time_matchEIG = toc;
+
+% evaluate error
+if homography
+    [err_matchEIG,correct_matches_matchEIG,n_matches_matchEIG] = matching_error_homography(ncams,dimPerm,Z.*Z_matchEIG,SIFT,H,th);
+else
+    [err_matchEIG] = matching_error_sparse(ncams,dimPerm,Z, Z_matchEIG,SIFT,R_true,t_true,K,th);
+end
+
+[err_matchEIG_M,correct_matches_matchEIG,n_matches_matchEIG] = matching_error_global(ncams,dimPerm,Z_matchEIG.*Z,SIFT,R_true,t_true,K,th);
+
+fprintf('\nPrecision (MatchEIG) = %.2f %%\nNumber of matches (MatchEIG) = %.2f\nMatchEIG run in %.0f sec\n', 100-err_matchEIG_M*100,n_matches_matchEIG/n_matches_input,time_matchEIG);
+
+%% FCC
+
+n_iter=10;
+n_blk=8;
+step_size=0.05;
+use2=1; use3=0; use4=0;
+rounding = 0;
+
+tic
+s = compute_stat_syn(Z, dimPerm', ncams, n_iter,n_blk,step_size, use2, use3, use4, rounding);
+
+
+Z_FCC = s>0.5;
+Z_FCC = Z_FCC.*Z;
+
+time_FCC_50 = toc;
+[err_FCC_50] = matching_error_sparse(ncams,dimPerm,Z, Z_FCC,SIFT,R_true,t_true,K,th);
+
+[err_FCC_50_M,correct_matches_FCC,n_matches_FCC] = matching_error_global(ncams,dimPerm,Z_FCC,SIFT,R_true,t_true,K,th);
+
+fprintf('\nPrecision (FCC 0.5) = %.2f %%\nNumber of matches (FCC) = %.2f\nMatchEIG run in %.0f sec\n', 100-err_FCC_50_M*100,n_matches_FCC/n_matches_input,time_FCC_50);
+
+
+
+
+Z_FCC = s>0.9;
+Z_FCC = Z_FCC.*Z;
+
+time_FCC_90 = toc;
+[err_FCC_90] = matching_error_sparse(ncams,dimPerm,Z, Z_FCC,SIFT,R_true,t_true,K,th);
+
+[err_FCC_90_M,correct_matches_FCC,n_matches_FCC] = matching_error_global(ncams,dimPerm,Z_FCC,SIFT,R_true,t_true,K,th);
+
+fprintf('\nPrecision (FCC 0.9) = %.2f %%\nNumber of matches (FCC) = %.2f\nMatchEIG run in %.0f sec\n', 100-err_FCC_90_M*100,n_matches_FCC/n_matches_input,time_FCC_90);
+
+
+Z_FCC = s>0.99;
+Z_FCC = Z_FCC.*Z;
+
+time_FCC_99 = toc;
+[err_FCC_99] = matching_error_sparse(ncams,dimPerm,Z, Z_FCC,SIFT,R_true,t_true,K,th);
+
+[err_FCC_99_M,correct_matches_FCC,n_matches_FCC] = matching_error_global(ncams,dimPerm,Z_FCC,SIFT,R_true,t_true,K,th);
+
+fprintf('\nPrecision (FCC 0.99) = %.2f %%\nNumber of matches (FCC) = %.2f\nMatchEIG run in %.0f sec\n', 100-err_FCC_99_M*100,n_matches_FCC/n_matches_input,time_FCC_99);
+
+
+%% Multi-view Matching (SPECTRAL)
+
+tic
+[Z_spectral,A_spectral] = mmatch_spectral(Z,dimPerm',2*d);
+time_spectral = toc;
+
+% evaluate error
+if homography
+    [err_spectral,correct_matches_spectral,n_matches_spectral] = matching_error_homography(ncams,dimPerm,Z_spectral,SIFT,H,th);
+else
+    [err_spectral] = matching_error_sparse(ncams,dimPerm,Z, Z_spectral,SIFT,R_true,t_true,K,th);
+end
+
+ [err_spectral_M,correct_matches_spectral,n_matches_spectral] = matching_error_global(ncams,dimPerm,Z_spectral.*Z,SIFT,R_true,t_true,K,th);
+
+fprintf('\nPrecision (Spectral) = %.2f %%\nNumber of matches (Spectral) = %.2f\nSpectral run in %.0f sec\n', 100-err_spectral_M*100,n_matches_spectral/n_matches_input,time_spectral);
+
+
+
+%% Multi-view Matching (MATCHALS)
+
+tic
+[Z_matchALS,A_matchALS,~] = mmatch_CVX_ALS(Z,dimPerm,'pselect',0.7,'maxiter',10,'verbose',false);
+time_matchALS = toc;
+
+% evaluate error
+if homography
+    [err_matchALS,correct_matches_matchALS,n_matches_matchALS] = matching_error_homography(ncams,dimPerm,Z_matchALS,SIFT,H,th);
+else
+    [err_matchALS] = matching_error_sparse(ncams,dimPerm, Z, Z_matchALS,SIFT,R_true,t_true,K,th);
+end
+
+ [err_matchALS_M,correct_matches_matchALS,n_matches_matchALS] = matching_error_global(ncams,dimPerm,Z_matchALS.*Z,SIFT,R_true,t_true,K,th);
+
+fprintf('\nPrecision (MatchALS) = %.2f %%\nNumber of matches (MatchALS) = %.2f\nMatchALS run in %.0f sec\n', 100-err_matchALS_M*100,n_matches_matchALS/n_matches_input,time_matchALS);
+
+
+%% Projected Power Method (PPM)
+cumIndex = cumsum([0;dimPerm])';
+
+
+tic;
+
+[Z_ppm,P_ppm] = mmatch_spectral(Z,dimPerm',2*d);
+Z_ppm = sparse(Z);
+gamma = 4;
+% PPM Iteration
+Z_ppm = sparse(1:size(Z_ppm,1),1:size(Z_ppm,1),1./sum(Z_ppm,2)) * Z_ppm;
+for t=1:60
+    P0 = P_ppm;
+    P_ppm = Z_ppm*P_ppm;
+    for i=1:ncams
+        P_ppm(cumIndex(i)+1:cumIndex(i+1),:) = matrix2permutation(P_ppm(cumIndex(i)+1:cumIndex(i+1),:));
+    end
+    if norm(P_ppm-P0,'F')==0
+        break;
+    end
+end
+time_ppm = toc;
+Z_ppm = P_ppm*P_ppm';
+
+if homography
+    [err_ppm,correct_matches_ppm,n_matches_ppm] = matching_error_homography(ncams,dimPerm,Z_ppm,SIFT,H,th);
+else
+    [err_ppm,recall_ppm] = matching_error_sparse(ncams,dimPerm, Z, Z_ppm,SIFT,R_true,t_true,K,th);
+end
+
+ [err_ppm_M,correct_matches_ppm,n_matches_ppm] = matching_error_global(ncams,dimPerm,Z_ppm.*Z,SIFT,R_true,t_true,K,th);
+
+fprintf('\nPrecision (ppm) = %.2f %%\nNumber of matches (ppm) = %.2f\nppm run in %.0f sec\n', 100-err_ppm_M*100,n_matches_ppm/n_matches_input,time_ppm);
+
+%% MatchFAME
+cumIndex = cumsum([0;dimPerm])';
+tic;
+gamma = 4;
+eps = 0;
+AdjMat = ones(size(dimPerm,1));
+AdjMat = AdjMat - diag(diag(AdjMat));
+P_MatchFAME = MatchFAME(Z,dimPerm,AdjMat,d,gamma,eps,'dense');
+time_MatchFAME = toc;
+Z_MatchFAME = P_MatchFAME*P_MatchFAME';
+
+if homography
+    [err_MatchFAME,correct_matches_MatchFAME,n_matches_MatchFAME] = matching_error_homography(ncams,dimPerm,Z_MatchFAME,SIFT,H,th);
+else
+    [err_MatchFAME,recall_MatchFAME] = matching_error_sparse(ncams,dimPerm, Z, Z_MatchFAME,SIFT,R_true,t_true,K,th);
+end
+
+ [err_MatchFAME_M,correct_matches_MatchFAME,n_matches_MatchFAME] = matching_error_global(ncams,dimPerm,Z_MatchFAME.*Z,SIFT,R_true,t_true,K,th);
+
+fprintf('\nPrecision (MatchFAME) = %.2f %%\nNumber of matches (MatchFAME) = %.2f\nMatchFAME run in %.0f sec\n', 100-err_MatchFAME_M*100,n_matches_MatchFAME/n_matches_input,time_MatchFAME);
+
+
