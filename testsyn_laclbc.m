@@ -3,16 +3,15 @@ n_pt = 20;
 p=0.5;  % prob of connection
 
 
-rng(1);
-%%%%%%%%% two probabilities of corruption:
-% q0=0.01;
+% rng(1);
+%%%%%%%%% 
 q1=0; % keypoint match corruption (elementwise)
 p_select = 0.8; % probability of a keypoint included in an image
-% p_corrupt = 0.75; % probability of corruption for an image
+% p_neighbor = 0.9; % probability of neighborhood corruption for a corrupted image
 % option = 'mal';
 % n_node_corr = 10; % number of corrupted images
 % q2=0.75; % partial perm corruption (the entire matrix)
-[Z, Z_gt, mat_size, AdjMat, GoodEdge] = Unif_corr_data_gen(p_select,p_corrupt,p,n,n_pt);
+[Z, Z_gt, mat_size, AdjMat, GoodEdge] = local_advers_gen(n,n_pt,n_node_corr,p,p_select,p_neighbor,option);
 i=0;
 while graphconncomp(AdjMat)~=1
     [Z, Z_gt, mat_size, AdjMat, GoodEdge] = local_advers_gen(n,n_pt,n_node_corr,p,p_select,p_neighbor,option);
@@ -58,7 +57,6 @@ time_matchEIG = toc;
 % evaluate error
 n_matches_matchEIG = nnz(Z_matchEIG.*Z);
 n_matches_matchEIG_M = nnz(Z_matchEIG.*Z_gt);
-% err_matchEIG = norm(Z_matchEIG.*Zv-Zv,'F')^2/norm(Zv,'F')^2;
 err_matchEIG_M = norm(Z_matchEIG.*Z.*Z_gt-Z_matchEIG.*Z,'F')^2/norm(Z_matchEIG.*Z,'F')^2;
 num_matchEIG = n_matches_matchEIG_M/n_matches_gt;
 
@@ -75,7 +73,6 @@ time_spectral = toc;
 % evaluate error
 n_matches_spectral = nnz(Z_spectral.*Z);
 n_matches_spectral_M = nnz(Z_spectral.*Z_gt);
-% err_spectral = norm(Z_spectral.*Zv-Zv,'F')^2/norm(Zv,'F')^2;
 err_spectral_M = norm(Z_spectral.*Z_gt.*Z-Z_spectral.*Z,'F')^2/norm(Z_spectral.*Z,'F')^2;
 
 num_spectral = n_matches_spectral_M/n_matches_gt;
@@ -91,7 +88,6 @@ cumIndex = cumsum([0;dimPerm])';
 
 
 tic;
-% S0 = CEMP_partial(Z, Z, dimPerm', length(dimPerm), 1000, ones(size(dimPerm,1),size(dimPerm,1)));
 
 [Z_ppm,P_ppm] = mmatch_spectral(Z,dimPerm',2*d);
 Z_ppm = sparse(Z);
@@ -107,7 +103,6 @@ Z_ppm = P_ppm*P_ppm';
 
 n_matches_ppm = nnz(Z_ppm.*Z);
 n_matches_ppm_M = nnz(Z_ppm.*Z_gt);
-% err_ppm = norm(Z_ppm.*Zv-Zv,'F')^2/norm(Zv,'F')^2;
 err_ppm_M = norm(Z_ppm.*Z_gt.*Z-Z_ppm.*Z,'F')^2/norm(Z_ppm.*Z,'F')^2;
 
 num_ppm = n_matches_ppm_M/n_matches_gt;
@@ -127,16 +122,13 @@ P_MatchFAME = MatchFAME(Z,dimPerm,AdjMat,2*d,gamma,eps);
 time_MatchFAME = toc;
 Z_MatchFAME = P_MatchFAME*P_MatchFAME';
 
-n_MatchFAME = nnz(Z_MatchFAME.*Z);
-n_MatchFAME_M = nnz(Z_MatchFAME.*Z_gt);
-% err_cemp_ppm_mst_20_5 = norm(Z_cemp_ppm_mst_20_5.*Zv-Zv,'F')^2/norm(Zv,'F')^2;
+n_matches_MatchFAME = nnz(Z_MatchFAME.*Z);
+n_matches_MatchFAME_M = nnz(Z_MatchFAME.*Z_gt);
 err_MatchFAME_M = norm(Z_MatchFAME.*Z.*Z_gt-Z_MatchFAME.*Z,'F')^2/norm(Z_MatchFAME.*Z,'F')^2;
 
-num_MatchFAME = n_MatchFAME_M/n_matches_gt;
+num_MatchFAME = n_matches_MatchFAME_M/n_matches_gt;
 
-% fprintf('\nPrecision (cemp_ppm_mst_20_5) = %.2f %%\ncemp_ppm_mst_20_5 run in %.0f sec\n', err_cemp_ppm_mst_20_5*100, time_cemp_ppm_mst_20_5);
-
-fprintf('\nPrecision (MatchFAME pr) = %.2f %%\nNumber of matches (cemp_ppm_mst_20_5) = %.2f\nMatchFAME run in %.0f sec\n', 100-err_MatchFAME_M*100,n_MatchFAME/n_matches_input,time_MatchFAME);
+fprintf('\nPrecision (MatchFAME pr) = %.2f %%\nNumber of matches (cemp_ppm_mst_20_5) = %.2f\nMatchFAME run in %.0f sec\n', 100-err_MatchFAME_M*100,n_matches_MatchFAME/n_matches_input,time_MatchFAME);
 
 
 alglist = ["matchEIG","spectral",...

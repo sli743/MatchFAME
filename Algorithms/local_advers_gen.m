@@ -1,14 +1,28 @@
 function [Wij,Wij_orig,mat_size,AdjMat,GoodEdge] = local_advers_gen(n,d,n_node_corr,p,p_select,p_neighbor,option)
-%n_node_corr=6;p_neighbor=0.9;option='mal';
-% rng(rr);
-% n=50; % number of images
-% p=0.8; % prob of connection
+% local_advers_gen: Generate synthetic data following the local advasarial
+% corruption model
+% Author: Shaohan Li
+% © Regents of the University of Minnesota. All rights reserved
+% Input Parameters: 
+% n: number of images
+% d: size of the universe
+% n_node_corr: number of corruption seed nodes 
+% p: prob of connection
+% p_select: probability of each keypoint inculded in an image
+% p_neighbor: probability of corruption for each associated edge of a corruption seed node
+% option: use 'mal' for LBC(local biased corruption) model and 'mal2' for
+% LAC (local adversarial corruption model)
+% Output: 
+% Wij: Observed sparse pairwise matching matrix
+% Wij_orig: Ground truth sparse pairwise matching matrix
+% mat_size: A list of integers that consists of the number of keypoints in
+% each image
+% AdjMat: Adjacency matrix
+% GoodEdge: A +1/-1 valued n by n matrix indicating whether an edge is
+% good (+1 for good edges and -1 for bad edges)
+
 q=0;
-% d=10;
 sigma=0;
-% beta=1;
-% beta_max=40;
-% rate=2;
 G = rand(n,n) < p;
 G = tril(G,-1);
 % generate adjacency matrix
@@ -16,9 +30,8 @@ AdjMat = sparse(G + G');
 [Ind_j, Ind_i] = find(G==1);
 Ind = [Ind_j, Ind_i;Ind_i, Ind_j];
 m = length(Ind_i);
-
+% generate 3D keypoint indices for each image
 Inds = [];
-% IndEnd = 0;
 u = 1:d;
 mat_size = [];
 IndLog = [];
@@ -51,7 +64,8 @@ for k = 1:m
 end
 PijMat = Pij_orig;
 noiseIndLog = rand(1,m)>=q;
-% indices of corrupted edges
+% add sigma noise to indices of noisy edges 
+% (since no noise is involved in LAC / LBC, we just assume all edges are noisy with sigma = 0)
 corrIndLog = logical(1-noiseIndLog);
 noiseInd=find(noiseIndLog);
 corrInd=find(corrIndLog);
@@ -64,8 +78,7 @@ for k = noiseInd
     Wij((d*j-(d-1)):(d*j), (d*i-(d-1)):(d*i))=sparse((PijMat(:,:,k))');
 end    
 
-
-%nb=[];
+% generate local corruption
 node_corr = randperm(n);
 node_corr = node_corr(1:n_node_corr);
 corrMat = zeros(n,n);
@@ -82,13 +95,11 @@ end
 GoodEdge = AdjMat;
 for i = node_corr
     neighbor_cand = Ind(Ind(:,1)==i,2);
-%     neighbor_cand = neighbor_cand(neighbor_cand>i);
     neighbor_cand = reshape(neighbor_cand, 1, length(neighbor_cand));
     neighbor_corr = randperm(length(neighbor_cand));
     n_neighbor = floor(p_neighbor * length(neighbor_cand));
     neighbor_corr = neighbor_corr(1:n_neighbor);
     neighbor_corr = neighbor_cand(neighbor_corr);
-    %nb=[nb;neighbor_corr];
     for j = neighbor_corr 
         k = abs(IndMat(i,j));
         corrMat(i,j) = 1;corrMat(j,i) = 1;
@@ -120,7 +131,7 @@ for i = node_corr
         
 end
 
-
+% output should be sparse matrices
 Wij = sparse(Wij(Inds,Inds));
 Wij_orig = sparse(Wij_orig(Inds,Inds));
 

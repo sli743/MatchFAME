@@ -1,4 +1,3 @@
-function [P] = MatchFAME(Z,dimPerm,AdjMat,d,gamma,eps,varargin)
 % MatchFAME
 % Author: Shaohan Li
 % © Regents of the University of Minnesota. All rights reserved
@@ -6,12 +5,17 @@ function [P] = MatchFAME(Z,dimPerm,AdjMat,d,gamma,eps,varargin)
 % Z: Initialization of pairwise matching matrix
 % dimPerm: Number of keypoints in each image
 % AdjMat: Adjacency matrix of the viewing graph
-% d: mean number of keypoints for each image
+% n: estimated universe size
+% Use n = 2*d as universe size for small data or synthetic data (such as EPFL), 16*d for large
+% data (such as Photo Tourism), where d is the mean number of keypoints in
+% each image
 % gamma, eps: parameters
 % gamma = 20 for synthetic data, gamma = 4 for real data
 % eps = 1e-2 for synthetic data, eps = 0 for real data
-% varargin: use 'dense' for EPFL experiment where a
+% varargin: use 'dense' for EPFL experiment where a denser initialization
+% is necessary; otherwise leave empty
 % Output: P: Estimated absolute partial permutation
+function [P] = MatchFAME(Z,dimPerm,AdjMat,n,gamma,eps,varargin)
 dimPerm = reshape(dimPerm,length(dimPerm),1);
 cumIndex = cumsum([0;dimPerm])';
 ncams = length(dimPerm);
@@ -20,12 +24,10 @@ Z = Z-diag(diag(Z));
 %% CEMP-Partial
 S0 = CEMP_partial(Z, dimPerm', length(dimPerm), AdjMat);
 S0(isnan(S0))=1;
-% Use 2*d as universe size for small data or synthetic data (such as EPFL), 16*d for large
-% data (such as Photo Tourism)
 if length(varargin)==1 && strcmp(varargin{1}, 'dense')
-    P_init = MinimumSpanningTree_dense(sparse(S0),dimPerm',2*d,ncams,sparse(AdjMat),Z);
+    P_init = MinimumSpanningTree_dense(sparse(S0),dimPerm',n,ncams,sparse(AdjMat),Z);
 else
-    P_init = MinimumSpanningTree(sparse(S0),dimPerm',2*d,ncams,sparse(AdjMat),Z);
+    P_init = MinimumSpanningTree(sparse(S0),dimPerm',n,ncams,sparse(AdjMat),Z);
 end
 P = P_init;
 Z = sparse(Z);

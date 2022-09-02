@@ -150,6 +150,53 @@ end
 
 fprintf('\nPrecision (MatchEIG) = %.2f %%\nNumber of matches (MatchEIG) = %.2f\nMatchEIG run in %.0f sec\n', 100-err_matchEIG_M*100,n_matches_matchEIG/n_matches_input,time_matchEIG);
 
+%% FCC
+
+n_iter=10;
+n_blk=8;
+step_size=0.05;
+use2=1; use3=0; use4=0;
+rounding = 0;
+
+tic
+s = compute_stat_syn(Z, dimPerm', ncams, n_iter,n_blk,step_size, use2, use3, use4, rounding);
+
+
+Z_FCC = s>0.5;
+Z_FCC = Z_FCC.*Z;
+
+time_FCC_50 = toc;
+[err_FCC_50] = matching_error_sparse(ncams,dimPerm,Z, Z_FCC,SIFT,R_true,t_true,K,th);
+
+[err_FCC_50_M,correct_matches_FCC,n_matches_FCC] = matching_error_global(ncams,dimPerm,Z_FCC,SIFT,R_true,t_true,K,th);
+
+fprintf('\nPrecision (FCC 0.5) = %.2f %%\nNumber of matches (FCC) = %.2f\nMatchEIG run in %.0f sec\n', 100-err_FCC_50_M*100,n_matches_FCC/n_matches_input,time_FCC_50);
+
+
+
+
+Z_FCC = s>0.9;
+Z_FCC = Z_FCC.*Z;
+
+time_FCC_90 = toc;
+[err_FCC_90] = matching_error_sparse(ncams,dimPerm,Z, Z_FCC,SIFT,R_true,t_true,K,th);
+
+[err_FCC_90_M,correct_matches_FCC,n_matches_FCC] = matching_error_global(ncams,dimPerm,Z_FCC,SIFT,R_true,t_true,K,th);
+
+fprintf('\nPrecision (FCC 0.9) = %.2f %%\nNumber of matches (FCC) = %.2f\nMatchEIG run in %.0f sec\n', 100-err_FCC_90_M*100,n_matches_FCC/n_matches_input,time_FCC_90);
+
+
+Z_FCC = s>0.99;
+Z_FCC = Z_FCC.*Z;
+
+time_FCC_99 = toc;
+[err_FCC_99] = matching_error_sparse(ncams,dimPerm,Z, Z_FCC,SIFT,R_true,t_true,K,th);
+
+[err_FCC_99_M,correct_matches_FCC,n_matches_FCC] = matching_error_global(ncams,dimPerm,Z_FCC,SIFT,R_true,t_true,K,th);
+
+fprintf('\nPrecision (FCC 0.99) = %.2f %%\nNumber of matches (FCC) = %.2f\nMatchEIG run in %.0f sec\n', 100-err_FCC_99_M*100,n_matches_FCC/n_matches_input,time_FCC_99);
+
+
 %% Multi-view Matching (SPECTRAL)
 
 tic

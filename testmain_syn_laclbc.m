@@ -1,10 +1,11 @@
+% script for synthetic experiment on LAC / LBC
 clear;
 addpath ./utils
 diary output_main_syn_laclbc_0328.log;
 option = 'mal2'; %'mal' for lbc, 'mal2' for lac
 p_neighbor = 0.6; %0.9 for lbc, 0.6 for lac
 alglist = ["matchEIG","spectral",...
-    "ppm","cemp_ppm_mst_20_5"];
+    "ppm","MatchFAME"];
 for n_node_corr = 1:6
     for alg = 1:length(alglist)
         evalc(['err_bad_' alglist{alg} '_' num2str(n_node_corr) ' = [];']);
@@ -13,7 +14,7 @@ for n_node_corr = 1:6
         evalc(['recall_' alglist{alg} '_' num2str(n_node_corr) ' = [];']);
     end
     for iter_num = 1:20
-    testsyn_laclbc_001;
+    testsyn_laclbc;
     for alg = 1:length(alglist)
         evalc(['err_bad_' alglist{alg} '_' num2str(n_node_corr) ' = [' ...
             'err_bad_' alglist{alg} '_' num2str(n_node_corr) ', err_bad_' ...
@@ -31,4 +32,5 @@ for n_node_corr = 1:6
     end
 end
 save('./Data/data_laclbc.mat');
+plotsyn_laclbc_2;
 diary off
