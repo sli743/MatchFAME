@@ -30,7 +30,7 @@ for k=1:sizetree
     AdjTree(j,i)=1;
 end
 %[~, rootnodes]=max(sum(AdjTree));
-[S,C] = graphconncomp(sparse(AdjTree));
+C = conncomp(tree);
 rootnodes = find(C==1,1);
 added=zeros(1,n);
 P_est = zeros(N, d);
