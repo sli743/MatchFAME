@@ -15,10 +15,12 @@ t_max = 100;
 blk_ind = [0, cumsum(dim)];
 N = blk_ind(end); % or N=size(X,1);
 DG = SMat+2*AdjMat;
-
-
-[tree,~]=graphminspantree(DG);
-[T1, T2, ~] = find(tree);
+% For matlab 2024 or later, graphminspantree is removed, so we use
+% minspantree instead. 
+G = graph(DG);
+tree=minspantree(G);
+T1 = tree.Edges.EndNodes(:,1);
+T2 = tree.Edges.EndNodes(:,2);
 sizetree=size(T1,1);
 n = size(SMat,1);
 AdjTree = zeros(n);
