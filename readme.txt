@@ -4,3 +4,5 @@ testmain_syn_unif2.m for uniform corruption models
 
 To rerun EPFL experiment please put the EPFL data into ./Data, put vlfeat-0.9.21 library into ./vlfeat-0.9.21 and refer to these files:
 testmain_EPFL.m for all EPFL datasets
+
+Reference for MatchFAME: https://openaccess.thecvf.com/content/CVPR2022/papers/Li_Fast_Accurate_and_Memory-Efficient_Partial_Permutation_Synchronization_CVPR_2022_paper.pdf
